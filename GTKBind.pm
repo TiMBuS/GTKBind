@@ -33,7 +33,6 @@ sub attach {
             isa      => 'Gtk2::Builder',
             required => 1,
         );
-        $attached->{$meta->name} = 1;
     }
 
     my $attr;
