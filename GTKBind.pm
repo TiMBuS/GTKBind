@@ -5,6 +5,8 @@ use MooseX::OmniTrigger;
 use Carp;
 use Gtk2;
 
+our $VERSION = 0.01;
+
 Moose::Exporter->setup_import_methods(
     also            => ['Moose', 'MooseX::OmniTrigger'],
     with_meta       => [ 'attach' ],
@@ -14,10 +16,12 @@ Moose::Exporter->setup_import_methods(
     },
 );
 
-our %_lookup_default = (
-    GtkLabel => ['label', undef],
-    GtkEntry => ['text', 'changed'],
-);
+sub _lookup_default {
+    return {
+        GtkLabel => ['label', undef],
+        GtkEntry => ['text', 'changed'],
+    }
+}
 
 
 sub attach {
@@ -25,6 +29,15 @@ sub attach {
 
     $options{to} or croak '"attach" needs a widget name to attach "to"';
     my $to = ref $options{to} eq 'ARRAY' ? $options{to} : [$options{to}];
+
+    if ( $options{depends} and $options{calculate} and ref $options{calculate} eq 'SUB' ) {
+
+    }
+    elsif ($options{depends} xor $options{calculate}){
+        carp 'Cannot calculate a value with no dependencies' unless $options{depends};
+        carp 'Cannot depend on a value with no calculations' unless $options{calculate};
+        carp '"calculate" needs to be a subroutine' unless ref $options{calculate} eq 'SUB';
+    }
 
     if (!$meta->has_attribute('gui')){
         $meta->add_attribute(
@@ -43,10 +56,10 @@ sub attach {
             my $self = shift;
             my $gui = $self->gui;
 
-            for my $bound (@$to) {
+            for my $bound (@{$to}) {
                 my ($id, $property, $signal, $widget);
 
-                if (ref ($bound)) {
+                if (ref $bound) {
                     ($id, $property, $signal) = @{$bound}{qw|id property signal|};
                 }
                 else {
@@ -55,14 +68,14 @@ sub attach {
 
                 $widget =
                     $gui->get_object($id)
-                    or warn "Cannot find widget '$id' in builder object!"
+                    or carp "Cannot find widget '$id' in builder object!"
                     and next;
 
                 my $widget_type = $widget->get_name;
                 $property //=
-                    $GTKBind::_lookup_default{$widget_type}->[0];
+                    _lookup_default()->{$widget_type}->[0];
                 $signal   //=
-                    $GTKBind::_lookup_default{$widget_type}->[1];
+                    _lookup_default()->{$widget_type}->[1];
 
 
                 push @{$attr->boundto}, {
@@ -90,9 +103,13 @@ sub attach {
             my $self = shift;
             my (undef, $new, $old) = @_;
 
-            if (!@$old || (@$new && $new->[0] ne $old->[0])){
+            if (!@{$old} || (@{$new} && $new->[0] ne $old->[0])){
                 for my $widget (@{$attr->boundto}) {
                     $widget->{instance}->set_property($widget->{property}, $new->[0]);
+                }
+
+                for my $dependant (@{$attr->dependants}) {
+                    $dependant->set_value;
                 }
             }
         },
@@ -116,7 +133,8 @@ sub attach {
     ##LATE ITEMS ARE LAZY
     before '_process_options' => sub {
         my ( $class, $name, $options ) = @_;
-        $options->{lazy} = 1 if $options->{late};
+        $options->{lazy} = 1
+            if ($options->{late});
     };
 1;}
 

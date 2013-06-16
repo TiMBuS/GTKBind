@@ -9,7 +9,16 @@ attach 'text' => (
 attach 'reset_active' => (
 	to      => {id => 'resetbutton', property => 'sensitive'},
 	default => 0,
+
+	depends => 'text',
+	calculate => sub {
+		my $self = shift;
+		my ($val) = @_;
+		return $val ne 'buttes';
+	}
 );
+
+
 
 __PACKAGE__->meta->make_immutable;
 
