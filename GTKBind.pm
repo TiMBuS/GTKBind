@@ -33,10 +33,12 @@ sub attach {
     if ( $options{depends} and $options{calculate} and ref $options{calculate} eq 'SUB' ) {
 
     }
+    elsif (ref $options{calculate} eq 'SUB'){
+        carp '"calculate" needs to be a subroutine';
+    }
     elsif ($options{depends} xor $options{calculate}){
         carp 'Cannot calculate a value with no dependencies' unless $options{depends};
         carp 'Cannot depend on a value with no calculations' unless $options{calculate};
-        carp '"calculate" needs to be a subroutine' unless ref $options{calculate} eq 'SUB';
     }
 
     if (!$meta->has_attribute('gui')){
