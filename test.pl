@@ -6,6 +6,11 @@ attach 'text' => (
 	default => 'buttes',
 );
 
+attach 'reset_active' => (
+	to      => {id => 'resetbutton', property => 'sensitive'},
+	default => 0,
+);
+
 __PACKAGE__->meta->make_immutable;
 
 1;}

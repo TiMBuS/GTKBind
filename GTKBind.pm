@@ -24,7 +24,7 @@ sub attach {
     my ( $meta, $name, %options ) = @_;
 
     $options{to} or croak '"attach" needs a widget name to attach "to"';
-    my $to = ref $options{to} ? $options{to} : [$options{to}];
+    my $to = ref $options{to} eq 'ARRAY' ? $options{to} : [$options{to}];
 
     if (!$meta->has_attribute('gui')){
         $meta->add_attribute(
@@ -44,18 +44,18 @@ sub attach {
             my $gui = $self->gui;
 
             for my $bound (@$to) {
-                my ($name, $property, $signal, $widget);
+                my ($id, $property, $signal, $widget);
 
                 if (ref ($bound)) {
-                    ($name, $property, $signal) = @$bound;
+                    ($id, $property, $signal) = @{$bound}{qw|id property signal|};
                 }
                 else {
-                    $name = $bound;
+                    $id = $bound;
                 }
 
                 $widget =
-                    $gui->get_object($name)
-                    or warn "Cannot find widget '$_' in builder object!"
+                    $gui->get_object($id)
+                    or warn "Cannot find widget '$id' in builder object!"
                     and next;
 
                 my $widget_type = $widget->get_name;
