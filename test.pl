@@ -13,8 +13,8 @@ attach 'reset_active' => (
 	depends => 'text',
 	calculate => sub {
 		my $self = shift;
-		my ($val) = @_;
-		return $val ne 'buttes';
+		my $val = shift; #In this case, it's always 'text'.
+		return $self->$val ne 'buttes';
 	}
 );
 

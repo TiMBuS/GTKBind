@@ -2,7 +2,7 @@
 use 5.010;
 use Moose ();
 use MooseX::OmniTrigger;
-use Carp;
+use Carp qw(carp croak);
 use Gtk2;
 
 our $VERSION = 0.01;
@@ -17,10 +17,12 @@ Moose::Exporter->setup_import_methods(
 );
 
 sub _lookup_default {
-    return {
+    state $table = {
         GtkLabel => ['label', undef],
         GtkEntry => ['text', 'changed'],
-    }
+    };
+    my $ret = $table->{$_[0]};
+    return $ret ? @{$ret} : (undef, undef);
 }
 
 
@@ -29,17 +31,6 @@ sub attach {
 
     $options{to} or croak '"attach" needs a widget name to attach "to"';
     my $to = ref $options{to} eq 'ARRAY' ? $options{to} : [$options{to}];
-
-    if ( $options{depends} and $options{calculate} and ref $options{calculate} eq 'SUB' ) {
-
-    }
-    elsif (ref $options{calculate} eq 'SUB'){
-        carp '"calculate" needs to be a subroutine';
-    }
-    elsif ($options{depends} xor $options{calculate}){
-        carp 'Cannot calculate a value with no dependencies' unless $options{depends};
-        carp 'Cannot depend on a value with no calculations' unless $options{calculate};
-    }
 
     if (!$meta->has_attribute('gui')){
         $meta->add_attribute(
@@ -74,16 +65,14 @@ sub attach {
                     and next;
 
                 my $widget_type = $widget->get_name;
-                $property //=
-                    _lookup_default()->{$widget_type}->[0];
-                $signal   //=
-                    _lookup_default()->{$widget_type}->[1];
-
+                my ($default_property,$default_signal) = _lookup_default($widget_type);
+                $property //= $default_property;
+                $signal   //= $default_signal;
 
                 push @{$attr->boundto}, {
                     instance => $widget,
                     property => $property,
-                    signal   => $signal
+                    signal   => $signal,
                 };
 
                 if ($signal){
@@ -110,8 +99,8 @@ sub attach {
                     $widget->{instance}->set_property($widget->{property}, $new->[0]);
                 }
 
-                for my $dependant (@{$attr->dependants}) {
-                    $dependant->set_value;
+                for my $dependant_callback (@{$self->meta->dependants_map->{$attr->name}}) {
+                    $dependant_callback->($self);
                 }
             }
         },
@@ -119,6 +108,20 @@ sub attach {
         late => 1,
         boundto => [],
     );
+    
+    if ( $options{depends} and $options{calculate} and ref $options{calculate} eq 'CODE' ) {
+        my $deps = ref $options{depends} eq 'ARRAY' ? $options {depends} : [$options{depends}];
+        for my $depends (@{$deps}){
+            push @{$meta->dependants_map->{$depends}}, sub { $attr->set_value($_[0], $options{calculate}->($_[0], $depends)) };
+        }
+    }
+    elsif ($options{calculate} && ref $options{calculate} ne 'CODE'){
+        carp '"calculate" needs to be a code ref, was instead given a ' . ref $options{calculate};
+    }
+    elsif ($options{depends} xor $options{calculate}){
+        carp 'Cannot calculate a value with no dependencies' unless $options{depends};
+        carp 'Cannot depend on a value with no calculations' unless $options{calculate};
+    }
 }
 
 
@@ -144,6 +147,8 @@ sub attach {
 {   package GTKBind::MetaRole::Class;
     use namespace::autoclean;
     use Moose::Role;
+    
+    has 'dependants_map' => (is => 'ro', isa => 'HashRef', default => sub {{}});
 
     ##INLINED CONSTRUCTOR
     around '_inline_new_object' => sub {
