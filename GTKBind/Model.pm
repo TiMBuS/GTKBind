@@ -1,4 +1,4 @@
-{ package GTKBind;
+{ package GTKBind::Model;
 use 5.010;
 use Moose ();
 use MooseX::OmniTrigger;
@@ -11,8 +11,8 @@ Moose::Exporter->setup_import_methods(
     also            => ['Moose', 'MooseX::OmniTrigger'],
     with_meta       => [ 'attach' ],
     class_metaroles => {
-        class     => ['GTKBind::MetaRole::Class'],
-        attribute => ['GTKBind::MetaRole::Attribute'],
+        class     => ['GTKBind::Model::MetaRole::Class'],
+        attribute => ['GTKBind::Model::MetaRole::Attribute'],
     },
 );
 
@@ -39,6 +39,35 @@ sub attach {
             isa      => 'Gtk2::Builder',
             required => 1,
         );
+
+        $meta->add_method( 'reset', sub {
+            my $self     = shift;
+            my $attrname = shift
+              or croak 'Need to be given an attribute name';
+            my $attr = $self->meta->get_attribute($attrname)
+              or croak "Attribute '$attrname' not found in class";
+
+            $attr->set_value( $self, $attr->userdefault )
+              if $attr->has_userdefault;
+        });
+
+        $meta->add_method( 'reset_all', sub {
+            my $self = shift;
+            for my $attr ( $self->meta->get_all_attributes ) {
+                $attr->set_value( $self, $attr->userdefault )
+                  if $attr->has_userdefault;
+            }
+        });
+
+        $meta->add_method( 'default', sub {
+            my $self     = shift;
+            my $attrname = shift
+              or croak 'Need to be given an attribute name';
+            my $attr = $self->meta->get_attribute($attrname)
+              or croak "Attribute '$attrname' not found in class";
+
+            return $attr->userdefault;
+        });
     }
 
     my $attr;
@@ -107,8 +136,9 @@ sub attach {
 
         late => 1,
         boundto => [],
+        userdefault => $options{default},
     );
-    
+
     if ( $options{depends} and $options{calculate} and ref $options{calculate} eq 'CODE' ) {
         my $deps = ref $options{depends} eq 'ARRAY' ? $options {depends} : [$options{depends}];
         for my $depends (@{$deps}){
@@ -127,13 +157,13 @@ sub attach {
 
 1;}
 
-{   package GTKBind::MetaRole::Attribute;
+{   package GTKBind::Model::MetaRole::Attribute;
     use namespace::autoclean;
     use Moose::Role;
 
-    has 'boundto' => ( is => 'ro', isa => 'ArrayRef', predicate => 'is_boundto' );
-
-    has 'late'    => ( is => 'ro', predicate => 'is_late' );
+    has 'boundto'     => ( is => 'ro', isa => 'ArrayRef', predicate => 'is_boundto' );
+    has 'userdefault' => ( is => 'ro', predicate => 'has_userdefault' );
+    has 'late'        => ( is => 'ro', predicate => 'is_late' );
 
     ##LATE ITEMS ARE LAZY
     before '_process_options' => sub {
@@ -144,10 +174,10 @@ sub attach {
 1;}
 
 
-{   package GTKBind::MetaRole::Class;
+{   package GTKBind::Model::MetaRole::Class;
     use namespace::autoclean;
     use Moose::Role;
-    
+
     has 'dependants_map' => (is => 'ro', isa => 'HashRef', default => sub {{}});
 
     ##INLINED CONSTRUCTOR
@@ -158,7 +188,7 @@ sub attach {
 
         splice @ret, -1, 0,
             map {'$instance->meta->get_attribute(\''.$_->name.'\')->get_value($instance);'}
-            grep {$_->is_late}
+            grep {$_->does('GTKBind::Model::MetaRole::Attribute') && $_->is_late}
             $self->get_all_attributes;
 
         return @ret;
@@ -171,7 +201,7 @@ sub attach {
         my $class = $self->$method(@_);
 
         $_->get_value($class)
-            for grep {$_->is_late}
+            for grep {$_->does('GTKBind::Model::MetaRole::Attribute') && $_->is_late}
             $self->get_all_attributes;
 
         return $class;
