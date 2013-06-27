@@ -9,7 +9,7 @@ our $VERSION = 0.01;
 
 Moose::Exporter->setup_import_methods(
     also      => [ 'Moose' ],
-    with_meta => [ 'event' ],
+    with_meta => [ 'event', 'watch' ],
 );
 
 
@@ -33,8 +33,10 @@ sub event {
         );
     }
 
+
+
     my $attr = $meta->add_attribute(
-        "$id $event " . ++$event_count,
+        "${id}_${event}_" . ++$event_count,
         is => 'ro',
         default => sub {
             my $self = shift;
@@ -50,6 +52,17 @@ sub event {
 
     #push {$meta->eventmap} $attr
 
+}
+
+sub watch {
+    state $watch_count = 0;
+    my ( $meta, $watch_name, $handler ) = @_;
+    my $attr = $meta->add_attribute(
+        '_watch_' . ++$watch_count,
+        default => {
+
+        }
+    );
 }
 
 
