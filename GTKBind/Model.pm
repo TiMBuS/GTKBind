@@ -40,6 +40,13 @@ sub attach {
             required => 1,
         );
 
+        $meta->add_attribute(
+            '_listeners',
+            is       => 'ro',
+            isa      => 'HashRef',
+            default => sub {{}},
+        );
+
         $meta->add_method( 'reset', sub {
             my $self     = shift;
             my $attrname = shift
@@ -67,6 +74,23 @@ sub attach {
               or croak "Attribute '$attrname' not found in class";
 
             return $attr->userdefault;
+        });
+
+        $meta->add_method( 'add_watch', sub {
+            my $self = shift;
+            my $attrname = shift
+              or croak 'Need to be given an attribute name';
+            my $handler = shift
+              or croak 'Need to be given a watcher method';
+
+            ref $handler eq 'CODE'
+              or croak 'Watcher method needs to be a coderef';
+
+            my $attr = $self->meta->get_attribute($attrname)
+              or croak "Attribute '$attrname' not found in class";
+
+
+            push @{$self->_listeners->{$attrname}}, _curry_watcher($attr, $attrname, $handler);
         });
     }
 
@@ -114,6 +138,9 @@ sub attach {
                 }
             }
 
+            #Move listeners from the meta to the instance.
+            $self->_listeners->{$name} = $meta->_listeners->{$name};
+
             $options{default};
         },
 
@@ -128,30 +155,37 @@ sub attach {
                     $widget->{instance}->set_property($widget->{property}, $new->[0]);
                 }
 
-                for my $dependant_callback (@{$self->meta->dependants_map->{$attr->name}}) {
-                    $dependant_callback->($self);
+                for my $listener (@{$self->_listeners->{$attr->name}}) {
+                    $listener->($self);
                 }
             }
         },
 
-        late => 1,
-        boundto => [],
+        late        => 1,
+        boundto     => [],
         userdefault => $options{default},
     );
 
     if ( $options{depends} and $options{calculate} and ref $options{calculate} eq 'CODE' ) {
         my $deps = ref $options{depends} eq 'ARRAY' ? $options {depends} : [$options{depends}];
         for my $depends (@{$deps}){
-            push @{$meta->dependants_map->{$depends}}, sub { $attr->set_value($_[0], $options{calculate}->($_[0], $depends)) };
+            push @{$meta->_listeners->{$depends}},
+              _curry_watcher($attr, $depends, $options{calculate});
         }
     }
     elsif ($options{calculate} && ref $options{calculate} ne 'CODE'){
-        carp '"calculate" needs to be a code ref, was instead given a ' . ref $options{calculate};
+        carp '"calculate" needs to be a code ref, was instead given a(n) ' .
+          ref $options{calculate};
     }
     elsif ($options{depends} xor $options{calculate}){
         carp 'Cannot calculate a value with no dependencies' unless $options{depends};
         carp 'Cannot depend on a value with no calculations' unless $options{calculate};
     }
+}
+
+sub _curry_watcher {
+    my ($attr, $target, $handler) = @_;
+    return sub { $attr->set_value($_[0], $handler->($_[0], $target)) };
 }
 
 
@@ -178,7 +212,7 @@ sub attach {
     use namespace::autoclean;
     use Moose::Role;
 
-    has 'dependants_map' => (is => 'ro', isa => 'HashRef', default => sub {{}});
+    has '_listeners' => (is => 'ro', isa => 'HashRef', default => sub {{}});
 
     ##INLINED CONSTRUCTOR
     around '_inline_new_object' => sub {

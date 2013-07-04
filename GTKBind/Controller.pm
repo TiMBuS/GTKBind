@@ -9,14 +9,28 @@ our $VERSION = 0.01;
 
 Moose::Exporter->setup_import_methods(
     also      => [ 'Moose' ],
-    with_meta => [ 'event', 'watch' ],
+    with_meta => [ 'on', 'event', 'watch' ],
 );
 
 
-sub event {
+sub on {
     state $event_count = 0;
-    my ( $meta, $id, $event, $handler ) = @_;
-    ref $handler eq 'CODE' or carp 'Need to handle an event/signal with a code reference';
+    my ( $meta, $widget, $event, $handler ) = @_;
+    $widget && $event && $handler or carp "Usage: on <widget_id>, <event>, <handler>";
+
+    return event(
+        $meta,
+        "${widget}_${event}_" . ++$event_count,
+        'widget'  => $widget,
+        'event'   => $event,
+        'handler' => $handler,
+    );
+}
+
+sub event {
+    my ( $meta, $name, %options ) = @_;
+    @options{qw[ widget event handler ]} or carp "widget, event, and handler are required";
+    ref $options{handler} eq 'CODE' or carp 'Need to handle an event/signal with a code reference';
 
     if (!$meta->has_attribute('gui')){
         $meta->add_attribute(
@@ -35,23 +49,20 @@ sub event {
 
 
 
-    my $attr = $meta->add_attribute(
-        "${id}_${event}_" . ++$event_count,
+    return $meta->add_attribute(
+        $name,
         is => 'ro',
         default => sub {
             my $self = shift;
 
             my $gui = $self->gui;
-            my $widget = $gui->get_object($id)
-              or carp "Cannot find widget '$id' in builder object!"
+            my $widget = $gui->get_object($options{widget})
+              or carp "Cannot find widget '$options{widget}' in builder object!"
               and return;
 
-            return $widget->signal_connect( $event, sub {$handler->($self, @_)} );
+            return $widget->signal_connect( $options{event}, sub {$options{handler}->($self, @_)} );
         },
     );
-
-    #push {$meta->eventmap} $attr
-
 }
 
 sub watch {
@@ -59,8 +70,11 @@ sub watch {
     my ( $meta, $watch_name, $handler ) = @_;
     my $attr = $meta->add_attribute(
         '_watch_' . ++$watch_count,
-        default => {
+        default => sub {
+            my $self  = shift;
+            my $model = $self->model;
 
+            $model->add_watch($watch_name, $handler);
         }
     );
 }

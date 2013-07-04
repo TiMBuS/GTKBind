@@ -28,7 +28,7 @@ class My::Model {
 
 class My::Controller {
     use GTKBind::Controller;
-    event 'resetbutton', 'clicked' => sub {
+    on 'resetbutton', 'clicked' => sub {
         my $self = shift;
         $self->model->reset('text');
     };
@@ -41,6 +41,7 @@ use Gtk2 '-init';
 my $builder = Gtk2::Builder->new();
 $builder->add_from_file('test.glade');
 
-my $a = My::Controller->new( model => My::Model->new( gui => $builder ), gui => $builder );
+my $m = My::Model->new( gui => $builder );
+my $a = My::Controller->new( model => $m, gui => $builder );
 
 Gtk2->main();
