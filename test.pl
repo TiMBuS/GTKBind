@@ -32,6 +32,10 @@ class My::Controller {
         my $self = shift;
         $self->model->reset('text');
     };
+
+    watch 'reset_active' => sub {
+        say "reset_active changed";
+    };
 }
 
 

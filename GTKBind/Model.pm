@@ -32,6 +32,14 @@ sub attach {
     $options{to} or croak '"attach" needs a widget name to attach "to"';
     my $to = ref $options{to} eq 'ARRAY' ? $options{to} : [$options{to}];
 
+    if ($options{calculate} && ref $options{calculate} ne 'CODE'){
+        carp '"calculate" needs to be a code ref, was instead given a(n) ' .
+          ref $options{calculate};
+    }
+    elsif ($options{depends} xor $options{calculate}){
+        carp 'Calculated values need both a "depends" and a "calculate" parameter';
+    }
+
     if (!$meta->has_attribute('gui')){
         $meta->add_attribute(
             'gui',
@@ -86,11 +94,11 @@ sub attach {
             ref $handler eq 'CODE'
               or croak 'Watcher method needs to be a coderef';
 
-            my $attr = $self->meta->get_attribute($attrname)
+            $self->meta->has_attribute($attrname)
               or croak "Attribute '$attrname' not found in class";
 
 
-            push @{$self->_listeners->{$attrname}}, _curry_watcher($attr, $attrname, $handler);
+            push @{$self->_listeners->{$attrname}}, $handler;
         });
     }
 
@@ -166,26 +174,14 @@ sub attach {
         userdefault => $options{default},
     );
 
-    if ( $options{depends} and $options{calculate} and ref $options{calculate} eq 'CODE' ) {
+    if ( $options{depends} ) {
         my $deps = ref $options{depends} eq 'ARRAY' ? $options {depends} : [$options{depends}];
         for my $depends (@{$deps}){
             push @{$meta->_listeners->{$depends}},
-              _curry_watcher($attr, $depends, $options{calculate});
+              sub { $attr->set_value($_[0], $options{calculate}->($_[0], $depends)) }
         }
     }
-    elsif ($options{calculate} && ref $options{calculate} ne 'CODE'){
-        carp '"calculate" needs to be a code ref, was instead given a(n) ' .
-          ref $options{calculate};
-    }
-    elsif ($options{depends} xor $options{calculate}){
-        carp 'Cannot calculate a value with no dependencies' unless $options{depends};
-        carp 'Cannot depend on a value with no calculations' unless $options{calculate};
-    }
-}
 
-sub _curry_watcher {
-    my ($attr, $target, $handler) = @_;
-    return sub { $attr->set_value($_[0], $handler->($_[0], $target)) };
 }
 
 

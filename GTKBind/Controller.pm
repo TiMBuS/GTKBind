@@ -29,7 +29,7 @@ sub on {
 
 sub event {
     my ( $meta, $name, %options ) = @_;
-    @options{qw[ widget event handler ]} or carp "widget, event, and handler are required";
+    @options{qw[ widget event handler ]} or carp "A widget, an event, and a handler are required";
     ref $options{handler} eq 'CODE' or carp 'Need to handle an event/signal with a code reference';
 
     if (!$meta->has_attribute('gui')){
@@ -69,7 +69,8 @@ sub watch {
     state $watch_count = 0;
     my ( $meta, $watch_name, $handler ) = @_;
     my $attr = $meta->add_attribute(
-        '_watch_' . ++$watch_count,
+        'z_watch_' . ++$watch_count,
+        is => 'ro',
         default => sub {
             my $self  = shift;
             my $model = $self->model;
