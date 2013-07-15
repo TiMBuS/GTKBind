@@ -8,7 +8,7 @@ class My::Model {
 
     attach 'text' => (
         to      => [ 'entry', 'label' ],
-        default => 'buttes',
+        default => 'derp',
     );
 
     attach 'reset_active' => (

@@ -2,13 +2,14 @@
 use 5.010;
 use Moose ();
 use MooseX::OmniTrigger;
+use MooseX::Late;
 use Carp qw(carp croak);
 use Gtk2;
 
 our $VERSION = 0.01;
 
 Moose::Exporter->setup_import_methods(
-    also      => [ 'Moose' ],
+    also      => [ 'Moose', 'MooseX::Late' ],
     with_meta => [ 'on', 'event', 'watch' ],
 );
 
@@ -69,14 +70,15 @@ sub watch {
     state $watch_count = 0;
     my ( $meta, $watch_name, $handler ) = @_;
     my $attr = $meta->add_attribute(
-        'z_watch_' . ++$watch_count,
+        'watch_' . ++$watch_count,
         is => 'ro',
         default => sub {
             my $self  = shift;
             my $model = $self->model;
 
             $model->add_watch($watch_name, $handler);
-        }
+        },
+        late => 1,
     );
 }
 

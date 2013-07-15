@@ -2,13 +2,14 @@
 use 5.010;
 use Moose ();
 use MooseX::OmniTrigger;
+use MooseX::Late;
 use Carp qw(carp croak);
 use Gtk2;
 
 our $VERSION = 0.01;
 
 Moose::Exporter->setup_import_methods(
-    also            => ['Moose', 'MooseX::OmniTrigger'],
+    also            => ['Moose', 'MooseX::OmniTrigger', 'MooseX::Late'],
     with_meta       => [ 'attach' ],
     class_metaroles => {
         class     => ['GTKBind::Model::MetaRole::Class'],
@@ -193,14 +194,7 @@ sub attach {
 
     has 'boundto'     => ( is => 'ro', isa => 'ArrayRef', predicate => 'is_boundto' );
     has 'userdefault' => ( is => 'ro', predicate => 'has_userdefault' );
-    has 'late'        => ( is => 'ro', predicate => 'is_late' );
 
-    ##LATE ITEMS ARE LAZY
-    before '_process_options' => sub {
-        my ( $class, $name, $options ) = @_;
-        $options->{lazy} = 1
-            if ($options->{late});
-    };
 1;}
 
 
@@ -210,31 +204,5 @@ sub attach {
 
     has '_listeners' => (is => 'ro', isa => 'HashRef', default => sub {{}});
 
-    ##INLINED CONSTRUCTOR
-    around '_inline_new_object' => sub {
-        my ( $method, $self ) = ( shift, shift );
-
-        my @ret = $self->$method(@_);
-
-        splice @ret, -1, 0,
-            map {'$instance->meta->get_attribute(\''.$_->name.'\')->get_value($instance);'}
-            grep {$_->does('GTKBind::Model::MetaRole::Attribute') && $_->is_late}
-            $self->get_all_attributes;
-
-        return @ret;
-    };
-
-    ##NOT.. INLINED CONSTRUCTOR
-    around 'new_object' => sub {
-        my ( $method, $self ) = ( shift, shift );
-
-        my $class = $self->$method(@_);
-
-        $_->get_value($class)
-            for grep {$_->does('GTKBind::Model::MetaRole::Attribute') && $_->is_late}
-            $self->get_all_attributes;
-
-        return $class;
-    };
 1;}
 
