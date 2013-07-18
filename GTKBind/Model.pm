@@ -9,7 +9,7 @@ use Gtk2;
 our $VERSION = 0.01;
 
 Moose::Exporter->setup_import_methods(
-    also            => ['Moose', 'MooseX::OmniTrigger', 'MooseX::Late'],
+    also            => [ 'Moose', 'MooseX::OmniTrigger', 'MooseX::Late' ],
     with_meta       => [ 'attach' ],
     class_metaroles => {
         class     => ['GTKBind::Model::MetaRole::Class'],
@@ -19,8 +19,8 @@ Moose::Exporter->setup_import_methods(
 
 sub _lookup_default {
     state $table = {
-        GtkLabel => ['label', undef],
-        GtkEntry => ['text', 'changed'],
+        GtkLabel => [ 'label', undef ],
+        GtkEntry => [ 'text', 'changed' ],
     };
     my $ret = $table->{$_[0]};
     return $ret ? @{$ret} : (undef, undef);
@@ -100,6 +100,23 @@ sub attach {
 
 
             push @{$self->_listeners->{$attrname}}, $handler;
+
+            return $handler;
+        });
+
+        $meta->add_method( 'remove_watch', sub {
+            my $self = shift;
+            my $handler = shift
+              or croak 'Need to be given a watcher method';
+
+            ref $handler eq 'CODE'
+              or croak 'Watcher method needs to be a coderef';
+
+            for my $array (values %{$self->_listeners}) {
+                @{$array} = grep{ $_ ne $handler } @{$array};
+            }
+
+            return 1;
         });
     }
 

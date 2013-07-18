@@ -28,12 +28,17 @@ class My::Model {
 
 class My::Controller {
     use GTKBind::Controller;
+
+    on 'mainwindow', 'destroy' => sub {
+        Gtk2->main_quit;
+    };
+
     on 'resetbutton', 'clicked' => sub {
         my $self = shift;
         $self->model->reset('text');
     };
 
-    watch 'reset_active' => sub {
+    named_watch 'alert_me', 'reset_active' => sub {
         say "reset_active changed";
     };
 }
@@ -47,5 +52,7 @@ $builder->add_from_file('test.glade');
 
 my $m = My::Model->new( gui => $builder );
 my $a = My::Controller->new( model => $m, gui => $builder );
+
+Glib::Timeout->add(2000, sub { say "watch removed!"; $m->remove_watch($a->alert_me); 0 });
 
 Gtk2->main();

@@ -10,7 +10,7 @@ our $VERSION = 0.01;
 
 Moose::Exporter->setup_import_methods(
     also      => [ 'Moose', 'MooseX::Late' ],
-    with_meta => [ 'on', 'event', 'watch' ],
+    with_meta => [ 'on', 'event', 'watch', 'named_watch' ],
 );
 
 
@@ -68,15 +68,20 @@ sub event {
 
 sub watch {
     state $watch_count = 0;
-    my ( $meta, $watch_name, $handler ) = @_;
+    my ( $meta, $subject, $handler ) = @_;
+    named_watch ($meta, '_watcher_' . $watch_count++, $subject, $handler);
+}
+
+sub named_watch {
+	my ( $meta, $name, $subject, $handler ) = @_;
     my $attr = $meta->add_attribute(
-        'watch_' . ++$watch_count,
+        $name,
         is => 'ro',
         default => sub {
             my $self  = shift;
             my $model = $self->model;
 
-            $model->add_watch($watch_name, $handler);
+            $model->add_watch($subject, $handler);
         },
         late => 1,
     );
